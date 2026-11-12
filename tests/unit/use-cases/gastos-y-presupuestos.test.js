@@ -22,6 +22,7 @@ const {
   ErrorNoEncontrado,
 } = require('../../../src/domain/errors');
 const { GeneradorDeIdsSecuencial } = require('../../support/fakes');
+const { crearEvaluadorPorDefecto } = require('../../../src/domain/services/alertas');
 
 function armar() {
   const categorias = new CategoriaRepositorioEnMemoria();
@@ -30,7 +31,13 @@ function armar() {
   const ids = new GeneradorDeIdsSecuencial();
   return {
     crearCategoria: new CrearCategoria({ categorias, ids }),
-    registrarGasto: new RegistrarGasto({ gastos, categorias, ids }),
+    registrarGasto: new RegistrarGasto({
+      gastos,
+      categorias,
+      presupuestos,
+      ids,
+      alertas: crearEvaluadorPorDefecto(),
+    }),
     crearPresupuesto: new CrearPresupuesto({ presupuestos, categorias, ids }),
     consultarReporte: new ConsultarReporteMensual({
       reporte: new ReporteQueryEnMemoria(gastos),
@@ -61,7 +68,7 @@ describe('RegistrarGasto', () => {
     const { crearCategoria, registrarGasto } = armar();
     const categoria = await crearCategoria.ejecutar({ usuarioId: 'u1', nombre: 'Comida' });
 
-    const gasto = await registrarGasto.ejecutar({
+    const { gasto, alerta } = await registrarGasto.ejecutar({
       usuarioId: 'u1',
       categoriaId: categoria.id,
       monto: 12.5,
@@ -71,6 +78,7 @@ describe('RegistrarGasto', () => {
 
     expect(gasto.monto.aNumero()).toBe(12.5);
     expect(gasto.descripcion).toBe('Almuerzo');
+    expect(alerta).toBeNull();
   });
 
   it('no deja usar una categoría que no existe o que es de otro usuario', async () => {
