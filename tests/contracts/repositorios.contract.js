@@ -1,5 +1,8 @@
-// Pruebas de contrato: cualquier implementación de un repositorio (en memoria o PostgreSQL)
+// Pruebas de contrato: cualquier implementación de los repositorios (en memoria o PostgreSQL)
 // debe comportarse igual. Se reutilizan para ambas, así se comprueba que son intercambiables.
+//
+// Cada función recibe `crearEscenario`, que devuelve repositorios limpios y compartiendo
+// el mismo almacenamiento: { usuarios, categorias, gastos, presupuestos, reporte }.
 
 const { Usuario } = require('../../src/domain/entities/usuario');
 const { Categoria } = require('../../src/domain/entities/categoria');
@@ -8,76 +11,100 @@ const { Presupuesto } = require('../../src/domain/entities/presupuesto');
 const { Dinero } = require('../../src/domain/value-objects/dinero');
 const { Mes } = require('../../src/domain/value-objects/mes');
 
-const usuario = (id = 'u1', email = 'ana@correo.com') =>
-  Usuario.crear({ id, nombre: 'Ana', email, passwordHash: 'hash' });
-const categoria = (id = 'c1', usuarioId = 'u1', nombre = 'Comida') =>
-  Categoria.crear({ id, usuarioId, nombre });
-const gasto = (id, monto, fecha = '2026-11-05', categoriaId = 'c1', usuarioId = 'u1') =>
-  Gasto.crear({ id, usuarioId, categoriaId, monto: Dinero.crear(monto), fecha });
-const presupuesto = (id = 'p1', mes = '2026-11', categoriaId = 'c1', usuarioId = 'u1') =>
+// Ids con formato UUID, porque PostgreSQL los guarda como uuid.
+const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const U1 = uuid(1);
+const U2 = uuid(2);
+const C1 = uuid(11);
+const C2 = uuid(12);
+const C3 = uuid(13);
+
+const usuario = (id, email) => Usuario.crear({ id, nombre: 'Ana', email, passwordHash: 'hash' });
+const categoria = (id, usuarioId, nombre) => Categoria.crear({ id, usuarioId, nombre });
+const gasto = (n, monto, fecha, categoriaId = C1) =>
+  Gasto.crear({
+    id: uuid(100 + n),
+    usuarioId: U1,
+    categoriaId,
+    monto: Dinero.crear(monto),
+    fecha,
+  });
+const presupuesto = (n, mes, categoriaId) =>
   Presupuesto.crear({
-    id,
-    usuarioId,
+    id: uuid(200 + n),
+    usuarioId: U1,
     categoriaId,
     mes: Mes.crear(mes),
     limite: Dinero.crear(200),
   });
 
-function contratoUsuarios(crearRepo) {
+const sembrarUsuarios = async (e) => {
+  await e.usuarios.guardar(usuario(U1, 'ana@correo.com'));
+  await e.usuarios.guardar(usuario(U2, 'bea@correo.com'));
+};
+const sembrarCategorias = async (e) => {
+  await sembrarUsuarios(e);
+  await e.categorias.guardar(categoria(C1, U1, 'Comida'));
+  await e.categorias.guardar(categoria(C2, U1, 'Ocio'));
+  await e.categorias.guardar(categoria(C3, U2, 'Otra'));
+};
+
+function contratoUsuarios(crearEscenario) {
   describe('contrato de UsuarioRepository', () => {
     it('guarda y busca por id y por email', async () => {
-      const repo = await crearRepo();
-      await repo.guardar(usuario());
+      const e = await crearEscenario();
+      await e.usuarios.guardar(usuario(U1, 'ana@correo.com'));
 
-      expect((await repo.buscarPorId('u1')).email).toBe('ana@correo.com');
-      expect((await repo.buscarPorEmail('ana@correo.com')).id).toBe('u1');
+      expect((await e.usuarios.buscarPorId(U1)).email).toBe('ana@correo.com');
+      expect((await e.usuarios.buscarPorEmail('ana@correo.com')).id).toBe(U1);
     });
 
     it('devuelve null cuando no existe', async () => {
-      const repo = await crearRepo();
+      const e = await crearEscenario();
 
-      expect(await repo.buscarPorId('x')).toBeNull();
-      expect(await repo.buscarPorEmail('nadie@correo.com')).toBeNull();
+      expect(await e.usuarios.buscarPorId(uuid(99))).toBeNull();
+      expect(await e.usuarios.buscarPorEmail('nadie@correo.com')).toBeNull();
     });
   });
 }
 
-function contratoCategorias(crearRepo) {
+function contratoCategorias(crearEscenario) {
   describe('contrato de CategoriaRepository', () => {
     it('guarda y busca por id y por nombre dentro de un usuario', async () => {
-      const repo = await crearRepo();
-      await repo.guardar(categoria());
+      const e = await crearEscenario();
+      await sembrarCategorias(e);
 
-      expect((await repo.buscarPorId('c1')).nombre).toBe('Comida');
-      expect((await repo.buscarPorNombre('u1', 'Comida')).id).toBe('c1');
-      expect(await repo.buscarPorNombre('u2', 'Comida')).toBeNull();
+      expect((await e.categorias.buscarPorId(C1)).nombre).toBe('Comida');
+      expect((await e.categorias.buscarPorNombre(U1, 'Comida')).id).toBe(C1);
+      expect(await e.categorias.buscarPorNombre(U2, 'Comida')).toBeNull();
+      expect(await e.categorias.buscarPorId(uuid(99))).toBeNull();
     });
 
     it('lista solo las categorías del usuario', async () => {
-      const repo = await crearRepo();
-      await repo.guardar(categoria('c1', 'u1', 'Comida'));
-      await repo.guardar(categoria('c2', 'u1', 'Ocio'));
-      await repo.guardar(categoria('c3', 'u2', 'Otra'));
+      const e = await crearEscenario();
+      await sembrarCategorias(e);
 
-      const lista = await repo.listarPorUsuario('u1');
+      const lista = await e.categorias.listarPorUsuario(U1);
 
-      expect(lista.map((c) => c.id).sort()).toEqual(['c1', 'c2']);
+      expect(lista.map((c) => c.id).sort()).toEqual([C1, C2]);
     });
   });
 }
 
-function contratoGastos(crearRepo) {
+function contratoGastos(crearEscenario) {
   describe('contrato de GastoRepository', () => {
     it('suma lo gastado por usuario, categoría y mes', async () => {
-      const repo = await crearRepo();
-      await repo.guardar(gasto('g1', 10.5));
-      await repo.guardar(gasto('g2', 4.5));
-      await repo.guardar(gasto('g3', 99, '2026-12-01'));
-      await repo.guardar(gasto('g4', 99, '2026-11-02', 'c2'));
+      const e = await crearEscenario();
+      await sembrarCategorias(e);
+      await e.gastos.guardar(gasto(1, 10.5, '2026-11-05'));
+      await e.gastos.guardar(gasto(2, 4.5, '2026-11-30'));
+      await e.gastos.guardar(gasto(3, 99, '2026-12-01'));
+      await e.gastos.guardar(gasto(4, 99, '2026-10-31'));
+      await e.gastos.guardar(gasto(5, 99, '2026-11-02', C2));
 
-      const total = await repo.totalGastado({
-        usuarioId: 'u1',
-        categoriaId: 'c1',
+      const total = await e.gastos.totalGastado({
+        usuarioId: U1,
+        categoriaId: C1,
         mes: Mes.crear('2026-11'),
       });
 
@@ -85,11 +112,12 @@ function contratoGastos(crearRepo) {
     });
 
     it('devuelve cero si no hay gastos', async () => {
-      const repo = await crearRepo();
+      const e = await crearEscenario();
+      await sembrarCategorias(e);
 
-      const total = await repo.totalGastado({
-        usuarioId: 'u1',
-        categoriaId: 'c1',
+      const total = await e.gastos.totalGastado({
+        usuarioId: U1,
+        categoriaId: C1,
         mes: Mes.crear('2026-11'),
       });
 
@@ -98,36 +126,40 @@ function contratoGastos(crearRepo) {
   });
 }
 
-function contratoPresupuestos(crearRepo) {
+function contratoPresupuestos(crearEscenario) {
   describe('contrato de PresupuestoRepository', () => {
     it('busca por usuario, categoría y mes', async () => {
-      const repo = await crearRepo();
-      await repo.guardar(presupuesto());
+      const e = await crearEscenario();
+      await sembrarCategorias(e);
+      await e.presupuestos.guardar(presupuesto(1, '2026-11', C1));
 
-      const encontrado = await repo.buscar({
-        usuarioId: 'u1',
-        categoriaId: 'c1',
+      const encontrado = await e.presupuestos.buscar({
+        usuarioId: U1,
+        categoriaId: C1,
         mes: Mes.crear('2026-11'),
       });
-      const otroMes = await repo.buscar({
-        usuarioId: 'u1',
-        categoriaId: 'c1',
+      const otroMes = await e.presupuestos.buscar({
+        usuarioId: U1,
+        categoriaId: C1,
         mes: Mes.crear('2026-12'),
       });
 
-      expect(encontrado.id).toBe('p1');
+      expect(encontrado.id).toBe(uuid(201));
+      expect(encontrado.limite.aNumero()).toBe(200);
+      expect(encontrado.mes.toString()).toBe('2026-11');
       expect(otroMes).toBeNull();
     });
 
     it('lista los presupuestos de un mes', async () => {
-      const repo = await crearRepo();
-      await repo.guardar(presupuesto('p1', '2026-11', 'c1'));
-      await repo.guardar(presupuesto('p2', '2026-11', 'c2'));
-      await repo.guardar(presupuesto('p3', '2026-12', 'c1'));
+      const e = await crearEscenario();
+      await sembrarCategorias(e);
+      await e.presupuestos.guardar(presupuesto(1, '2026-11', C1));
+      await e.presupuestos.guardar(presupuesto(2, '2026-11', C2));
+      await e.presupuestos.guardar(presupuesto(3, '2026-12', C1));
 
-      const lista = await repo.listarPorMes({ usuarioId: 'u1', mes: Mes.crear('2026-11') });
+      const lista = await e.presupuestos.listarPorMes({ usuarioId: U1, mes: Mes.crear('2026-11') });
 
-      expect(lista.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
+      expect(lista.map((p) => p.id).sort()).toEqual([uuid(201), uuid(202)]);
     });
   });
 }
@@ -135,27 +167,31 @@ function contratoPresupuestos(crearRepo) {
 function contratoReporte(crearEscenario) {
   describe('contrato de ReporteQuery', () => {
     it('agrupa lo gastado por categoría en un mes', async () => {
-      const { gastos, reporte } = await crearEscenario();
-      await gastos.guardar(gasto('g1', 10, '2026-11-01', 'c1'));
-      await gastos.guardar(gasto('g2', 5, '2026-11-02', 'c1'));
-      await gastos.guardar(gasto('g3', 7, '2026-11-03', 'c2'));
-      await gastos.guardar(gasto('g4', 50, '2026-12-01', 'c1'));
+      const e = await crearEscenario();
+      await sembrarCategorias(e);
+      await e.gastos.guardar(gasto(1, 10, '2026-11-01'));
+      await e.gastos.guardar(gasto(2, 5, '2026-11-30'));
+      await e.gastos.guardar(gasto(3, 7, '2026-11-03', C2));
+      await e.gastos.guardar(gasto(4, 50, '2026-12-01'));
 
-      const filas = await reporte.gastadoPorCategoria({
-        usuarioId: 'u1',
+      const filas = await e.reporte.gastadoPorCategoria({
+        usuarioId: U1,
         mes: Mes.crear('2026-11'),
       });
       const porCategoria = Object.fromEntries(filas.map((f) => [f.categoriaId, f.total.aNumero()]));
 
-      expect(porCategoria).toEqual({ c1: 15, c2: 7 });
+      expect(porCategoria).toEqual({ [C1]: 15, [C2]: 7 });
     });
   });
 }
 
-module.exports = {
-  contratoUsuarios,
-  contratoCategorias,
-  contratoGastos,
-  contratoPresupuestos,
-  contratoReporte,
-};
+// Ejecuta todos los contratos sobre una implementación.
+function contratoDeTodosLosRepositorios(crearEscenario) {
+  contratoUsuarios(crearEscenario);
+  contratoCategorias(crearEscenario);
+  contratoGastos(crearEscenario);
+  contratoPresupuestos(crearEscenario);
+  contratoReporte(crearEscenario);
+}
+
+module.exports = { contratoDeTodosLosRepositorios, uuid };

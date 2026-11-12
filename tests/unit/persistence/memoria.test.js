@@ -1,10 +1,4 @@
-const {
-  contratoUsuarios,
-  contratoCategorias,
-  contratoGastos,
-  contratoPresupuestos,
-  contratoReporte,
-} = require('../../contracts/repositorios.contract');
+const { contratoDeTodosLosRepositorios } = require('../../contracts/repositorios.contract');
 const {
   UsuarioRepositorioEnMemoria,
 } = require('../../../src/infrastructure/persistence/memoria/usuarios');
@@ -22,12 +16,14 @@ const {
 } = require('../../../src/infrastructure/persistence/memoria/reporte');
 
 describe('repositorios en memoria', () => {
-  contratoUsuarios(() => new UsuarioRepositorioEnMemoria());
-  contratoCategorias(() => new CategoriaRepositorioEnMemoria());
-  contratoGastos(() => new GastoRepositorioEnMemoria());
-  contratoPresupuestos(() => new PresupuestoRepositorioEnMemoria());
-  contratoReporte(() => {
+  contratoDeTodosLosRepositorios(() => {
     const gastos = new GastoRepositorioEnMemoria();
-    return { gastos, reporte: new ReporteQueryEnMemoria(gastos) };
+    return {
+      usuarios: new UsuarioRepositorioEnMemoria(),
+      categorias: new CategoriaRepositorioEnMemoria(),
+      gastos,
+      presupuestos: new PresupuestoRepositorioEnMemoria(),
+      reporte: new ReporteQueryEnMemoria(gastos),
+    };
   });
 });
