@@ -1,0 +1,469 @@
+openapi: 3.0.3
+info:
+  title: API de Gastos y Presupuestos
+  version: 1.0.0
+  description: >
+    API REST para registrar gastos por categoría, definir presupuestos mensuales y consultar
+    un reporte con lo gastado y lo que queda. Al registrar un gasto, la respuesta incluye una
+    alerta cuando se usa el 80% del presupuesto o se alcanza el 100%.
+servers:
+  - url: http://localhost:3000
+tags:
+  - name: Auth
+  - name: Categorías
+  - name: Gastos
+  - name: Presupuestos
+  - name: Reportes
+  - name: Sistema
+
+paths:
+  /auth/registro:
+    post:
+      tags: [Auth]
+      summary: Registra un usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistroEntrada'
+      responses:
+        '201':
+          description: Usuario creado. No se devuelve la contraseña.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '400':
+          $ref: '#/components/responses/Validacion'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Inicia sesión y devuelve un token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginEntrada'
+      responses:
+        '200':
+          description: Credenciales correctas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Se envía en el encabezado `Authorization Bearer`.
+        '400':
+          $ref: '#/components/responses/Validacion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+
+  /categorias:
+    get:
+      tags: [Categorías]
+      summary: Lista las categorías del usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Categorías del usuario.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Categoria'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+    post:
+      tags: [Categorías]
+      summary: Crea una categoría
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre]
+              properties:
+                nombre:
+                  type: string
+                  maxLength: 60
+                  example: Comida
+      responses:
+        '201':
+          description: Categoría creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Categoria'
+        '400':
+          $ref: '#/components/responses/Validacion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+
+  /gastos:
+    post:
+      tags: [Gastos]
+      summary: Registra un gasto
+      description: >
+        El gasto siempre se guarda. Si la categoría tiene presupuesto ese mes y ya se usó
+        el 80% o más, la respuesta incluye una alerta.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GastoEntrada'
+      responses:
+        '201':
+          description: Gasto registrado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gasto:
+                    $ref: '#/components/schemas/Gasto'
+                  alerta:
+                    nullable: true
+                    allOf:
+                      - $ref: '#/components/schemas/Alerta'
+        '400':
+          $ref: '#/components/responses/Validacion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+
+  /presupuestos:
+    post:
+      tags: [Presupuestos]
+      summary: Crea el presupuesto de una categoría para un mes
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresupuestoEntrada'
+      responses:
+        '201':
+          description: Presupuesto creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Presupuesto'
+        '400':
+          $ref: '#/components/responses/Validacion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+
+  /reportes/mensual:
+    get:
+      tags: [Reportes]
+      summary: Resumen del mes por categoría
+      description: >
+        Muestra solo las categorías que tienen gastos o presupuesto en ese mes.
+        `restante` es negativo si se superó el límite.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: mes
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+            example: '2026-11'
+      responses:
+        '200':
+          description: Reporte del mes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReporteMensual'
+        '400':
+          $ref: '#/components/responses/Validacion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '429':
+          $ref: '#/components/responses/DemasiadasPeticiones'
+
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Comprueba que la API y la base de datos responden
+      responses:
+        '200':
+          description: Todo funciona.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  estado:
+                    type: string
+                    example: ok
+        '503':
+          description: La base de datos no responde.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  estado:
+                    type: string
+                    example: error
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Validacion:
+      description: Los datos enviados no son válidos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NoAutorizado:
+      description: Falta el token, es inválido o está vencido (o las credenciales son incorrectas).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NoEncontrado:
+      description: El recurso no existe (o pertenece a otro usuario).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflicto:
+      description: El recurso ya existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    DemasiadasPeticiones:
+      description: Se superó el límite de peticiones.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            codigo:
+              type: string
+              example: VALIDACION
+            mensaje:
+              type: string
+              example: Los datos enviados no son válidos
+            detalles:
+              type: array
+              description: Solo en errores de validación de formato.
+              items:
+                type: object
+                properties:
+                  campo:
+                    type: string
+                  mensaje:
+                    type: string
+
+    RegistroEntrada:
+      type: object
+      required: [nombre, email, password]
+      properties:
+        nombre:
+          type: string
+          maxLength: 100
+          example: Ana
+        email:
+          type: string
+          example: ana@correo.com
+        password:
+          type: string
+          minLength: 8
+          example: secreta123
+
+    LoginEntrada:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          example: ana@correo.com
+        password:
+          type: string
+          example: secreta123
+
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        email:
+          type: string
+
+    Categoria:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+
+    GastoEntrada:
+      type: object
+      required: [categoriaId, monto, fecha]
+      properties:
+        categoriaId:
+          type: string
+          format: uuid
+        monto:
+          type: number
+          description: Mayor a 0, con hasta 2 decimales.
+          example: 12.5
+        descripcion:
+          type: string
+          maxLength: 255
+          example: Almuerzo
+        fecha:
+          type: string
+          format: date
+          example: '2026-11-05'
+
+    Gasto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        categoriaId:
+          type: string
+          format: uuid
+        monto:
+          type: number
+        descripcion:
+          type: string
+        fecha:
+          type: string
+          format: date
+
+    Alerta:
+      type: object
+      properties:
+        nivel:
+          type: string
+          enum: [ADVERTENCIA, EXCEDIDO]
+        mensaje:
+          type: string
+        porcentajeUsado:
+          type: number
+          example: 80
+        categoria:
+          type: string
+          example: Comida
+
+    PresupuestoEntrada:
+      type: object
+      required: [categoriaId, mes, limite]
+      properties:
+        categoriaId:
+          type: string
+          format: uuid
+        mes:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+          example: '2026-11'
+        limite:
+          type: number
+          description: Mayor a 0, con hasta 2 decimales.
+          example: 200
+
+    Presupuesto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        categoriaId:
+          type: string
+          format: uuid
+        mes:
+          type: string
+        limite:
+          type: number
+
+    ReporteMensual:
+      type: object
+      properties:
+        mes:
+          type: string
+          example: '2026-11'
+        totalGastado:
+          type: number
+        categorias:
+          type: array
+          items:
+            type: object
+            properties:
+              categoriaId:
+                type: string
+                format: uuid
+              nombre:
+                type: string
+              gastado:
+                type: number
+              limite:
+                type: number
+                nullable: true
+              restante:
+                type: number
+                nullable: true
+              porcentajeUsado:
+                type: number
+                nullable: true

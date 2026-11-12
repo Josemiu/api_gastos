@@ -15,6 +15,7 @@ const { HasherBcrypt } = require('./infrastructure/security/hasher-bcrypt');
 const { TokenServiceJwt } = require('./infrastructure/security/token-jwt');
 const { GeneradorDeIdsUuid } = require('./infrastructure/security/ids-uuid');
 const { crearApp } = require('./infrastructure/http/app');
+const { cargarDocumentacion } = require('./infrastructure/http/documentacion');
 
 // Punto de composición: aquí se eligen las implementaciones reales de cada puerto
 // y se conectan con los casos de uso. Es el único archivo que conoce todas las piezas.
@@ -34,7 +35,12 @@ const casosDeUso = crearCasosDeUso({
   alertas: crearEvaluadorPorDefecto(),
 });
 
-const app = crearApp({ comprobarSalud: comprobarBaseDeDatos(pool), casosDeUso, tokens });
+const app = crearApp({
+  comprobarSalud: comprobarBaseDeDatos(pool),
+  casosDeUso,
+  tokens,
+  documentacion: cargarDocumentacion(),
+});
 
 const servidor = app.listen(config.PORT, () => {
   console.log(`API escuchando en el puerto ${config.PORT} (${config.NODE_ENV})`);
