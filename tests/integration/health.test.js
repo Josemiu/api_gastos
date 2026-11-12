@@ -3,7 +3,7 @@ const { crearApp } = require('../../src/infrastructure/http/app');
 
 describe('GET /health', () => {
   it('responde 200 cuando la base de datos está disponible', async () => {
-    const app = crearApp({ comprobarSalud: async () => {} });
+    const app = crearApp({ comprobarSalud: async () => {}, casosDeUso: {}, tokens: {} });
 
     const respuesta = await request(app).get('/health');
 
@@ -16,6 +16,8 @@ describe('GET /health', () => {
       comprobarSalud: async () => {
         throw new Error('sin conexión');
       },
+      casosDeUso: {},
+      tokens: {},
     });
 
     const respuesta = await request(app).get('/health');
