@@ -25,4 +25,16 @@ class ErrorDeConflicto extends ErrorDeDominio {
   }
 }
 
-module.exports = { ErrorDeDominio, ErrorDeValidacion, ErrorNoEncontrado, ErrorDeConflicto };
+class ErrorNoAutorizado extends ErrorDeDominio {
+  constructor(mensaje) {
+    super(mensaje, 'NO_AUTORIZADO');
+  }
+}
+
+module.exports = {
+  ErrorDeDominio,
+  ErrorDeValidacion,
+  ErrorNoEncontrado,
+  ErrorDeConflicto,
+  ErrorNoAutorizado,
+};
