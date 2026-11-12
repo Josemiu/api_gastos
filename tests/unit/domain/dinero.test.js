@@ -36,6 +36,11 @@ describe('Dinero', () => {
     expect(() => Dinero.crear(80).porcentajeDe(Dinero.crear(0))).toThrow(ErrorDeValidacion);
   });
 
+  it('calcula porcentajes exactos aunque la división binaria no lo sea', () => {
+    expect(Dinero.crear(0.29).porcentajeDe(Dinero.crear(1))).toBe(29);
+    expect(Dinero.crear(160).porcentajeDe(Dinero.crear(200))).toBe(80);
+  });
+
   it('es inmutable y se serializa como número', () => {
     const dinero = Dinero.crear(12.5);
     expect(Object.isFrozen(dinero)).toBe(true);

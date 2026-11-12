@@ -54,7 +54,8 @@ class Dinero {
     if (total.#centavos === 0) {
       throw new ErrorDeValidacion('No se puede calcular un porcentaje sobre un total en cero');
     }
-    return (this.#centavos / total.#centavos) * 100;
+    // Se multiplica antes de dividir para que valores como 80% salgan exactos.
+    return (this.#centavos * 100) / total.#centavos;
   }
 
   aNumero() {
