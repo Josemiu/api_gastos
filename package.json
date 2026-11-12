@@ -1,0 +1,33 @@
+{
+  "name": "api_gastos",
+  "version": "1.0.0",
+  "main": "src/main.js",
+  "scripts": {
+    "test": "jest",
+    "start": "node --env-file=.env src/main.js",
+    "dev": "node --watch --env-file=.env src/main.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "migrate": "node --env-file=.env node_modules/node-pg-migrate/bin/node-pg-migrate.js"
+  },
+  "license": "MIT",
+  "description": "API REST de gastos y presupuestos con arquitectura hexagonal",
+  "dependencies": {
+    "express": "^5.3.0",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "jest": "^30.5.2",
+    "node-pg-migrate": "^9.0.0",
+    "prettier": "^3.10.1",
+    "supertest": "^7.3.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
