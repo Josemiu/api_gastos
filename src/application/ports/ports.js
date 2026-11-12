@@ -34,6 +34,7 @@
  *
  * @typedef {Object} TokenService
  * @property {(datos: {usuarioId: string}) => Promise<string>} emitir
+ * @property {(token: string) => Promise<{usuarioId: string}>} verificar  lanza ErrorNoAutorizado si no es válido
  *
  * @typedef {Object} GeneradorDeIds
  * @property {() => string} generar
