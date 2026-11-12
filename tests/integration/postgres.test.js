@@ -35,8 +35,8 @@ describeConBd('repositorios PostgreSQL', () => {
     await admin.query(`CREATE SCHEMA ${esquema}`);
     await admin.end();
 
-    pool = new Pool({ connectionString: urlDePrueba });
-    pool.on('connect', (cliente) => cliente.query(`SET search_path TO ${esquema}`));
+    // Cada conexión del pool arranca con el esquema temporal como esquema por defecto.
+    pool = new Pool({ connectionString: urlDePrueba, options: `-c search_path=${esquema}` });
 
     const migracion = fs.readFileSync(
       path.join(__dirname, '../../migrations/1700000000000_esquema-inicial.sql'),
